@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/home-base-3d/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>家园 · Web 3D</title>
+    <!-- 关键内联样式:防止 CSS(经 JS 注入)加载前 HUD 文字闪现在白屏上 -->
+    <style>
+      html,
+      body,
+      #app {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+    <script type="module" crossorigin src="/home-base-3d/assets/index-hXQsfBzw.js"></script>
+    <link rel="modulepreload" crossorigin href="/home-base-3d/assets/three-BKsmSW_G.js">
+    <link rel="stylesheet" crossorigin href="/home-base-3d/assets/index-CirCmmCI.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud" class="hidden">
+      <div id="topbar">
+        <span id="tb-date">春 · 第1天 · 清晨</span>
+        <span id="tb-weather">☀ 晴</span>
+        <span id="tb-money">💰 30</span>
+        <button id="pause-btn" class="tb-btn" title="暂停/继续(P)">⏸ 暂停</button>
+        <button id="bag-btn" class="tb-btn" title="背包(Tab)">🎒 背包</button>
+        <button id="map-btn" class="tb-btn" title="家园地图(M)">🗺 地图</button>
+        <button id="save-btn" class="tb-btn" title="保存进度到浏览器">💾 存档</button>
+        <button id="more-btn" class="tb-btn" title="存档管理与快进">⋯ 更多</button>
+        <div id="more-menu" class="hidden">
+          <button id="account-menu-item" class="menu-item" title="切换账户,按用户名分档存档">👤 账户:默认</button>
+          <button id="skip-day" class="menu-item" title="快进到次日清晨">⏭ 快进一天</button>
+          <button id="log-btn" class="menu-item" title="查看历史通知">📜 消息日志</button>
+          <button id="load-btn" class="menu-item" title="回到最近一次存档">📂 读档</button>
+          <button id="export-btn" class="menu-item" title="把存档下载成文件备份">📤 导出存档</button>
+          <button id="import-btn" class="menu-item" title="从存档文件导入并立即进入">📥 导入存档</button>
+          <button id="reset-btn" class="menu-item" title="删除存档并从头开始">🌱 重开</button>
+        </div>
+      </div>
+      <input type="file" id="save-file-input" accept=".json,application/json" class="hidden" />
+      <!-- 账户登录/切换弹窗:进入游戏前与切换账户时弹出,期间游戏暂停 -->
+      <div id="account-overlay" class="hidden">
+        <div id="account-card">
+          <h2 id="account-title">🏠 欢迎来到家园</h2>
+          <p id="account-hint">输入你的用户名,进度按账户分开存档<br />(留空 = 默认账户)</p>
+          <input id="account-input" list="account-list" maxlength="24" placeholder="输入用户名" autocomplete="off" />
+          <datalist id="account-list"></datalist>
+          <div id="account-btns">
+            <button id="account-enter">进入游戏</button>
+            <button id="account-cancel" class="hidden">继续当前账户</button>
+          </div>
+        </div>
+      </div>
+      <div id="resilience">
+        <div class="res-title">家园韧性 <span id="res-val">0</span>/100</div>
+        <div class="bar"><div id="res-fill" style="background:#7fb3e8"></div></div>
+      </div>
+      <div id="stats">
+        <div class="stat-row"><span class="stat-label">饱食</span><div class="bar"><div id="hunger-fill" style="background:#d8814a"></div></div></div>
+      </div>
+      <div id="hotbar">
+        <button class="slot active" data-tool="hand"><b>1</b> 手</button>
+        <button class="slot" data-tool="hoe"><b>2</b> 锄头</button>
+        <button class="slot" data-tool="seeds"><b>3</b> 种子 ×<span id="seed-count">6</span></button>
+        <span class="slot feed-info" title="饲料:对准动物按 E 喂食">🌾<span id="grain-count">8</span> 🌿<span id="hay-count">6</span> 🐟<span id="fishfood-count">4</span></span>
+      </div>
+      <div id="buildbar" class="hidden">
+        <button class="slot" data-piece="0"><b>1</b> 地基</button>
+        <button class="slot" data-piece="1"><b>2</b> 墙</button>
+        <button class="slot" data-piece="2"><b>3</b> 屋顶</button>
+        <button class="slot" data-piece="3"><b>4</b> 围栏</button>
+        <button class="slot" data-piece="4"><b>5</b> 篝火</button>
+        <button class="slot" data-piece="5"><b>6</b> 灯笼</button>
+        <span class="build-hint">LMB 放置 · R 旋转 · X 拆除 · B 退出</span>
+      </div>
+      <div id="prompt"></div>
+      <div id="vendor-chat"></div>
+      <div id="butler-chat"></div>
+      <div id="notices"></div>
+      <div id="tip-banner"></div>
+      <div id="pause-overlay" class="hidden">
+        <div class="pause-icon">⏸</div>
+        <div>游戏已暂停</div>
+        <p class="dim">按 P 或点顶栏按钮继续</p>
+      </div>
+      <div id="crosshair"></div>
+      <div id="map" class="hidden">
+        <h3>🗺 家园地图</h3>
+        <canvas id="map-canvas"></canvas>
+        <p class="dim">M 开关 · 实时显示工人、狗狗与你的位置 · Esc 关闭</p>
+      </div>
+      <div id="bag" class="hidden">
+        <h3>🎒 背包</h3>
+        <div id="bag-grid"></div>
+        <p class="dim">Tab 开关 · 点击 🍛食物/🥛牛奶 进食(饱了不消耗)</p>
+      </div>
+      <div id="proc" class="hidden">
+        <h3>🛠 加工台</h3>
+        <div id="proc-list"></div>
+        <p class="dim">对准加工台按 E 开关 · Esc 关闭</p>
+      </div>
+      <div id="firepit" class="hidden">
+        <h3>🔥 篝火</h3>
+        <div id="firepit-list"></div>
+        <p class="dim">对准篝火按 E 开关 · Esc 关闭</p>
+      </div>
+      <div id="plant" class="hidden">
+        <h3>🌱 选择播种</h3>
+        <div id="plant-list"></div>
+        <p class="dim">用种子或收成的作物直接种 · Esc 关闭</p>
+      </div>
+      <div id="shop" class="hidden">
+        <h3>🏪 商店 <span id="shop-money">💰 30 文</span></h3>
+        <div id="shop-list"></div>
+        <p class="dim">走近摊位按 E 开关 · 点弹窗外部关闭 · Esc 关闭</p>
+      </div>
+      <div id="log" class="hidden">
+        <h3>📜 消息日志</h3>
+        <div id="log-list"></div>
+        <p class="dim">最近 500 条 · 存于浏览器本地 <button id="log-clear" class="tb-btn" title="清空全部日志">清空</button></p>
+      </div>
+      <div id="ledger" class="hidden">
+        <h3>🧾 管家对账 <span id="ledger-money"></span></h3>
+        <div id="ledger-tips"></div>
+        <div id="ledger-list"></div>
+        <p class="dim">最近 7 天收支明细 · 走近管家按 E 开关 · Esc 关闭</p>
+      </div>
+      <div id="help" class="hidden">
+        <h3>《家园》按键说明</h3>
+        <ul>
+          <li><b>WASD</b> 移动 · <b>Shift</b> 按住奔跑</li>
+          <li><b>鼠标左键 / E</b> 对准目标交互:砍树/开垦/播种/收获/捡蛋/喂食/屠宰等一步到位;走近商店/管家/加工台/篝火等按 E 开关面板</li>
+          <li><b>按住鼠标右键</b> 转动视角(拖动时自动锁定指针,转到屏幕边缘也不停)</li>
+          <li><b>C</b> 常驻锁定指针进入准星模式,再按 C 释放</li>
+          <li><b>F</b> 进食(食物/牛奶/熟食,饱了不消耗)</li>
+          <li><b>Q</b> 开关手电筒(天亮自动收起)</li>
+          <li><b>G</b> 召唤狗狗跑到身边</li>
+          <li><b>Tab</b> 开关背包</li>
+          <li><b>M</b> 开关家园地图(实时查看工人与狗狗位置)</li>
+          <li><b>B</b> 进入/退出建造模式</li>
+          <li><b>建造模式下:</b> 1~6 选构件(地基/墙/屋顶/围栏/篝火/灯笼)· R 旋转 · X 开关拆除 · 左键放置</li>
+          <li><b>1 / 2 / 3</b>(非建造模式)切换手 / 锄头 / 种子</li>
+          <li><b>P</b> 暂停/继续游戏</li>
+          <li><b>Esc</b> 关闭当前打开的面板,或退出建造模式</li>
+          <li><b>H</b> 开关本按键说明</li>
+        </ul>
+        <p class="dim">游戏机制小贴士会随机显示在屏幕右下角 · 按 H 关闭</p>
+      </div>
+    </div>
+  </body>
+</html>
